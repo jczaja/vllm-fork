@@ -16,6 +16,7 @@ from typing import (TYPE_CHECKING, Any, Callable, Dict, List, NamedTuple,
 
 import habana_frameworks.torch as htorch
 import torch
+import torchview
 
 from vllm.attention import AttentionMetadata, get_attn_backend
 from vllm.config import (CacheConfig, DeviceConfig, LoadConfig, LoRAConfig,
@@ -152,6 +153,7 @@ class HpuModelAdapter():
     def __init__(self, model, enforce_eager):
         self.model = model
         if not htorch.utils.internal.is_lazy() and not enforce_eager:
+            #model_graph = torchview.draw_graph(mymodel, input_data=t, device='hpu', save_graph=True,filename="tinymodel.dot")
             self.model = torch.compile(self.model,
                                        backend='hpu_backend',
                                        dynamic=False)
@@ -190,6 +192,7 @@ class HpuModelAdapter():
                                                       input_ids.size(1),
                                                       input_ids.device,
                                                       torch.bfloat16)
+        #import pdb; pdb.set_trace()
         hidden_states = self.model(*args, **kwargs)
         hidden_states = hidden_states.view(-1, hidden_states.shape[-1])
         hidden_states = hidden_states.index_select(0, selected_token_indices)
@@ -1348,6 +1351,12 @@ class HabanaModelRunner(
                                 f"graphs{'T' if use_graphs else 'F'}")
         else:
             model_event_name = 'model_executable'
+
+
+        model_name = "llama_3_8b-"+str(input_tokens.size(0))+"x"+str(input_tokens.size(1))+".dot"
+
+        torchview.draw_graph(self.model, input_data=[input_tokens,input_positions,kv_caches,execute_model_kwargs['attn_metadata']], device='hpu', save_graph=True,filename=model_name,expand_nested=False)
+
         with self.profiler.record_event('internal', model_event_name):
             hidden_states = self.model.forward(
                 **execute_model_kwargs,
