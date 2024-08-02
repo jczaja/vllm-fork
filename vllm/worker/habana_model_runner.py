@@ -16,6 +16,7 @@ from typing import (TYPE_CHECKING, Any, Callable, Dict, List, NamedTuple,
 
 import habana_frameworks.torch as htorch
 import torch
+from torch._dynamo.backends.debugging import ExplainWithBackend
 
 from vllm.attention import AttentionMetadata, get_attn_backend
 from vllm.config import (CacheConfig, DeviceConfig, LoadConfig, LoRAConfig,
@@ -152,8 +153,9 @@ class HpuModelAdapter():
     def __init__(self, model, enforce_eager):
         self.model = model
         if not htorch.utils.internal.is_lazy() and not enforce_eager:
+            self.explain_backend = ExplainWithBackend("hpu_backend")
             self.model = torch.compile(self.model,
-                                       backend='hpu_backend',
+                                       backend=self.explain_backend,
                                        dynamic=False)
 
     def _set_attn_bias(self, attn_metadata, batch_size, seq_len, device,
@@ -191,6 +193,9 @@ class HpuModelAdapter():
                                                       input_ids.device,
                                                       torch.bfloat16)
         hidden_states = self.model(*args, **kwargs)
+        explain_output = self.explain_backend.output()
+        filename = f"llama-3-8b-{input_ids.size(0)}x{input_ids.size(1)}-tc.txt"
+        open(filename,'w').write(str(explain_output))
         hidden_states = hidden_states.view(-1, hidden_states.shape[-1])
         hidden_states = hidden_states.index_select(0, selected_token_indices)
         return hidden_states
