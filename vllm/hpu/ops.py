@@ -123,7 +123,7 @@ def static_fused_moe(hidden_states, w1, w2, score, topk):
     return final_hidden_states.view(-1, D)
 
 
-@hpu_utils.with_mark_steps
+#@hpu_utils.with_mark_steps
 def prompt_attention(
     query: torch.Tensor,
     key: torch.Tensor,
