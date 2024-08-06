@@ -52,6 +52,7 @@ _PAD_SLOT_ID = 0
 LORA_WARMUP_RANK = 8
 _TYPE_CACHE = {}
 
+GLOBAL_ID = 0
 
 def read_bucket_settings(phase: str, dim: str, **defaults):
     """Read bucketing configuration from env variables.
@@ -194,7 +195,9 @@ class HpuModelAdapter():
                                                       torch.bfloat16)
         hidden_states = self.model(*args, **kwargs)
         explain_output = self.explain_backend.output()
-        filename = f"llama-3-8b-{input_ids.size(0)}x{input_ids.size(1)}-tc.txt"
+        global GLOBAL_ID
+        filename = f"llama-3-8b-{input_ids.size(0)}x{input_ids.size(1)}-{GLOBAL_ID}-tc.txt"
+        GLOBAL_ID += 1
         open(filename,'w').write(str(explain_output))
         hidden_states = hidden_states.view(-1, hidden_states.shape[-1])
         hidden_states = hidden_states.index_select(0, selected_token_indices)
