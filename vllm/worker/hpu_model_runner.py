@@ -69,6 +69,8 @@ _PAD_BLOCK_ID = 0
 
 LORA_WARMUP_RANK = 8
 
+#    @torch._inductor.config.patch("freezing", True)
+torch._inductor.config.freezing = True
 
 def subtuple(obj: object,
              typename: str,
@@ -216,7 +218,6 @@ class HpuModelAdapter:
         self.layer_names = layer_names
         if not is_fake_hpu() and not htorch.utils.internal.is_lazy(
         ) and not enforce_eager:
-            torch._inductor.config.freezing = True
             if os.getenv('VLLM_REGIONAL_COMPILATION',
                          'true').lower() == 'true':
                 self.regional_compilation_layers_list = [
@@ -226,8 +227,7 @@ class HpuModelAdapter:
             else:
                 self.model = torch.compile(self.model,
                                            backend='hpu_backend',
-                                           dynamic=False,
-                                           options={"use_graph_freezing": True })
+                                           dynamic=False)
 
     def _regional_compilation(self,
                               module,
@@ -246,7 +246,7 @@ class HpuModelAdapter:
                                            children_name)
 
     def _compile_region(self, model, name, module):
-        module = torch.compile(module, backend='hpu_backend', dynamic=False, options={"use_graph_freezing": True })
+        module = torch.compile(module, backend='hpu_backend', dynamic=False)
         setattr(model, name, module)
 
     def _set_attn_bias(self, attn_metadata, batch_size, seq_len, device,
@@ -366,6 +366,7 @@ class HpuModelAdapter:
 
         rope.prepare_cos_sin(positions)
 
+#    @torch._inductor.config.patch("freezing", True)
     def forward(self, *args, **kwargs):
         kwargs = kwargs.copy()
         selected_token_indices = kwargs.pop('selected_token_indices')
