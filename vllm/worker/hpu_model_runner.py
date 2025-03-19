@@ -392,9 +392,10 @@ class HpuModelAdapter:
             attn_metadata = self._set_block_mapping(attn_metadata, batch_size,
                                                     device, dtype)
             attn_metadata = self._set_block_scales(attn_metadata, device)
-        attn_metadata = self._set_indices_and_offsets(attn_metadata,
-                                                      self.block_size,
-                                                      attn_metadata.is_prompt)
+#        import pdb;pdb.set_trace()
+#        attn_metadata = self._set_indices_and_offsets(attn_metadata,
+#                                                      self.block_size,
+#                                                      attn_metadata.is_prompt)
         return attn_metadata
 
     def _prepare_cos_sin(self, positions):
@@ -1146,7 +1147,7 @@ class HPUModelRunnerBase(ModelRunnerBase[TModelInputForHPU]):
         input_positions = input_positions.to(  # type: ignore
             self.device, non_blocking=True)
         slot_mapping = slot_mapping.to(  # type: ignore
-            self.device, non_blocking=True)
+            self.device, non_blocking=True)   # TODO: remove to HPU
         seq_lens_tensor = seq_lens_tensor.to(self.device, non_blocking=True)
         context_lens_tensor = context_lens_tensor.to(self.device,
                                                      non_blocking=True)
@@ -1171,12 +1172,21 @@ class HPUModelRunnerBase(ModelRunnerBase[TModelInputForHPU]):
             multi_modal_placeholder_index_maps=placeholder_index_maps,
             enable_kv_scales_calculation=False,
         )
+        # attn_metadata is of type : 
         multi_modal_kwargs = MultiModalKwargs.batch(multi_modal_kwargs_list)
         for t in multi_modal_kwargs:
             if torch.is_tensor(multi_modal_kwargs[t]):
                 multi_modal_kwargs[t] = multi_modal_kwargs[t].to(
                     self.device, non_blocking=True)
-
+#        import pdb; pdb.set_trace()
+########################
+#  attn_metadata = vllm.attention.backends.hpu_attn.HPUAttentionMetadata
+        slot_mapping = attn_metadata.slot_mapping.flatten()
+        indices = torch.div(slot_mapping, self.block_size, rounding_mode="floor")
+        indices = indices.unflatten(0, (-1, self.block_size))[:, 0]
+        attn_metadata.block_offsets=None
+        attn_metadata.block_indices=indices
+########################
         return PreparePromptMetadata(input_tokens=input_tokens_tensor,
                                      input_positions=input_positions,
                                      attn_metadata=attn_metadata,
@@ -1445,6 +1455,15 @@ class HPUModelRunnerBase(ModelRunnerBase[TModelInputForHPU]):
             multi_modal_placeholder_index_maps=None,
             enable_kv_scales_calculation=False,
         )
+####################################
+
+        slot_mapping = attn_metadata.slot_mapping.flatten()
+        indices = torch.div(slot_mapping, self.block_size, rounding_mode="floor")
+        offsets = torch.fmod(slot_mapping, self.block_size)
+        attn_metadata.block_offsets=offsets
+        attn_metadata.block_indices=indices
+
+####################################
         return PrepareDecodeMetadata(input_tokens=input_tokens,
                                      input_positions=input_positions,
                                      attn_metadata=attn_metadata,
