@@ -1146,11 +1146,11 @@ class HPUModelRunnerBase(ModelRunnerBase[TModelInputForHPU]):
             self.device, non_blocking=True)
         input_positions = input_positions.to(  # type: ignore
             self.device, non_blocking=True)
-        slot_mapping = slot_mapping.to(  # type: ignore
-            self.device, non_blocking=True)   # TODO: remove to HPU
+        slot_mapping_HPU = slot_mapping.to(self.device, non_blocking=True)
         seq_lens_tensor = seq_lens_tensor.to(self.device, non_blocking=True)
         context_lens_tensor = context_lens_tensor.to(self.device,
                                                      non_blocking=True)
+
 
         attn_metadata = self.attn_backend.make_metadata(
             is_prompt=True,
@@ -1168,25 +1168,24 @@ class HPUModelRunnerBase(ModelRunnerBase[TModelInputForHPU]):
             num_prefills=real_num_seqs,
             num_prefill_tokens=num_prefill_tokens,
             num_decode_tokens=0,
-            slot_mapping=slot_mapping,
+            slot_mapping=slot_mapping_HPU,
             multi_modal_placeholder_index_maps=placeholder_index_maps,
             enable_kv_scales_calculation=False,
         )
+########################
+#  attn_metadata = vllm.attention.backends.hpu_attn.HPUAttentionMetadata
+        slot_mapping = slot_mapping.flatten()
+        indices = torch.div(slot_mapping, self.block_size, rounding_mode="floor")
+        indices = indices.unflatten(0, (-1, self.block_size))[:, 0]
+        attn_metadata.block_offsets=None
+        attn_metadata.block_indices=indices.to(self.device, non_blocking=True)
+########################
         # attn_metadata is of type : 
         multi_modal_kwargs = MultiModalKwargs.batch(multi_modal_kwargs_list)
         for t in multi_modal_kwargs:
             if torch.is_tensor(multi_modal_kwargs[t]):
                 multi_modal_kwargs[t] = multi_modal_kwargs[t].to(
                     self.device, non_blocking=True)
-#        import pdb; pdb.set_trace()
-########################
-#  attn_metadata = vllm.attention.backends.hpu_attn.HPUAttentionMetadata
-        slot_mapping = attn_metadata.slot_mapping.flatten()
-        indices = torch.div(slot_mapping, self.block_size, rounding_mode="floor")
-        indices = indices.unflatten(0, (-1, self.block_size))[:, 0]
-        attn_metadata.block_offsets=None
-        attn_metadata.block_indices=indices
-########################
         return PreparePromptMetadata(input_tokens=input_tokens_tensor,
                                      input_positions=input_positions,
                                      attn_metadata=attn_metadata,
@@ -1196,7 +1195,7 @@ class HPUModelRunnerBase(ModelRunnerBase[TModelInputForHPU]):
                                      lora_prompt_mapping=lora_prompt_mapping,
                                      lora_requests=lora_requests,
                                      multi_modal_kwargs=multi_modal_kwargs,
-                                     slot_mapping=slot_mapping,
+                                     slot_mapping=slot_mapping_HPU,
                                      lora_ids=lora_ids)
 
     def _prepare_decode(
@@ -1419,7 +1418,7 @@ class HPUModelRunnerBase(ModelRunnerBase[TModelInputForHPU]):
             self.device, non_blocking=True)
         block_usage = block_usage.to(  # type: ignore
             self.device, non_blocking=True)
-        slot_mapping = slot_mapping.to(  # type: ignore
+        slot_mapping_HPU = slot_mapping.to(  # type: ignore
             self.device, non_blocking=True)
         if is_enc_dec_model:
             cross_block_list = cross_block_list.to(  # type: ignore
@@ -1451,7 +1450,7 @@ class HPUModelRunnerBase(ModelRunnerBase[TModelInputForHPU]):
             num_prefills=0,
             num_prefill_tokens=0,
             num_decode_tokens=num_decode_tokens,
-            slot_mapping=slot_mapping,
+            slot_mapping=slot_mapping_HPU,
             multi_modal_placeholder_index_maps=None,
             enable_kv_scales_calculation=False,
         )
@@ -1470,7 +1469,7 @@ class HPUModelRunnerBase(ModelRunnerBase[TModelInputForHPU]):
                                      lora_index_mapping=lora_index_mapping,
                                      lora_prompt_mapping=lora_prompt_mapping,
                                      lora_requests=lora_requests,
-                                     slot_mapping=slot_mapping,
+                                     slot_mapping=slot_mapping_HPU,
                                      lora_ids=lora_ids)
 
     def prepare_input_tensors(
