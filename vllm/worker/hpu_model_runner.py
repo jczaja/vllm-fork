@@ -1404,7 +1404,7 @@ class HPUModelRunnerBase(ModelRunnerBase[TModelInputForHPU]):
         block_usage = torch.tensor(block_usage,
                                    dtype=self.model_config.dtype,
                                    device='cpu')
-        slot_mapping = torch.tensor(slot_mapping,
+        slot_mapping_CPU = torch.tensor(slot_mapping,
                                     dtype=torch.long,
                                     device='cpu')
 
@@ -1418,7 +1418,7 @@ class HPUModelRunnerBase(ModelRunnerBase[TModelInputForHPU]):
             self.device, non_blocking=True)
         block_usage = block_usage.to(  # type: ignore
             self.device, non_blocking=True)
-        slot_mapping_HPU = slot_mapping.to(  # type: ignore
+        slot_mapping_HPU = slot_mapping_CPU.to(  # type: ignore
             self.device, non_blocking=True)
         if is_enc_dec_model:
             cross_block_list = cross_block_list.to(  # type: ignore
@@ -1455,12 +1455,11 @@ class HPUModelRunnerBase(ModelRunnerBase[TModelInputForHPU]):
             enable_kv_scales_calculation=False,
         )
 ####################################
-
-        slot_mapping = attn_metadata.slot_mapping.flatten()
+        slot_mapping = slot_mapping_CPU.flatten()
         indices = torch.div(slot_mapping, self.block_size, rounding_mode="floor")
         offsets = torch.fmod(slot_mapping, self.block_size)
-        attn_metadata.block_offsets=offsets
-        attn_metadata.block_indices=indices
+        attn_metadata.block_offsets=offsets.to(self.device, non_blocking=True)
+        attn_metadata.block_indices=indices.to(self.device, non_blocking=True)
 
 ####################################
         return PrepareDecodeMetadata(input_tokens=input_tokens,
