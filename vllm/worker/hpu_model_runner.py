@@ -331,6 +331,7 @@ class HpuModelAdapter:
         attn_metadata = prefill_metadata._replace(attn_bias=attn_bias)
         return attn_metadata
 
+    @torch.compile(backend='hpu_backend')
     def _set_block_mapping(self, metadata, batch_size, device, dtype):
         mask = torch.arange(0,
                             self.block_size,
@@ -360,6 +361,7 @@ class HpuModelAdapter:
                                      attn_bias=attn_bias)
         return metadata
 
+    @torch.compile(backend='hpu_backend')
     def _set_block_scales(self, metadata, device):
         block_mapping = metadata.block_mapping
         ones = torch.ones((block_mapping.size(0), ),
