@@ -1222,12 +1222,19 @@ class HPUModelRunnerBase(ModelRunnerBase[TModelInputForHPU]):
         context_lens_tensor = context_lens_tensor.to(self.device,
                                                      non_blocking=True)
 
+        # calculate indices using CPU and locate them on HPU
+        slot_mapping_flat = slot_mapping.flatten()  # type: ignore
+        indices = torch.div(slot_mapping_flat,
+                            self.block_size,
+                            rounding_mode="floor")
+        indices = indices.unflatten(0, (-1, self.block_size))[:, 0]
+
         attn_metadata = self.attn_backend.make_metadata(
             is_prompt=True,
             block_list=prefix_block_list_tensor,
             block_mapping=None,
             block_usage=None,
-            block_indices=None,
+            block_indices=indices.to(self.device, non_blocking=True),
             block_offsets=None,
             block_scales=None,
             block_groups=None,
@@ -1242,20 +1249,12 @@ class HPUModelRunnerBase(ModelRunnerBase[TModelInputForHPU]):
             multi_modal_placeholder_index_maps=placeholder_index_maps,
             enable_kv_scales_calculation=False,
         )
-        # calculate indices using CPU and locate them on HPU
-        slot_mapping = slot_mapping.flatten()  # type: ignore
-        indices = torch.div(slot_mapping,
-                            self.block_size,
-                            rounding_mode="floor")
-        indices = indices.unflatten(0, (-1, self.block_size))[:, 0]
-        attn_metadata.block_indices = indices.to(self.device,
-                                                 non_blocking=True)
-
         multi_modal_kwargs = MultiModalKwargs.batch(multi_modal_kwargs_list)
         for t in multi_modal_kwargs:
             if torch.is_tensor(multi_modal_kwargs[t]):
                 multi_modal_kwargs[t] = multi_modal_kwargs[t].to(
                     self.device, non_blocking=True)
+
         return PreparePromptMetadata(input_tokens=input_tokens_tensor,
                                      input_positions=input_positions,
                                      attn_metadata=attn_metadata,
@@ -1488,9 +1487,9 @@ class HPUModelRunnerBase(ModelRunnerBase[TModelInputForHPU]):
         block_usage = torch.tensor(block_usage,
                                    dtype=self.model_config.dtype,
                                    device='cpu')
-        slot_mapping_CPU = torch.tensor(slot_mapping,
-                                        dtype=torch.long,
-                                        device='cpu')
+        slot_mapping = torch.tensor(slot_mapping,
+                                    dtype=torch.long,
+                                    device='cpu')
 
         input_tokens = input_tokens.to(  # type: ignore
             self.device, non_blocking=True)
@@ -1512,13 +1511,22 @@ class HPUModelRunnerBase(ModelRunnerBase[TModelInputForHPU]):
             encoder_seq_lens_tensor = encoder_seq_lens_tensor.to(  # type: ignore
                 self.device, non_blocking=True)
 
+        # calculate indices and offsets using CPU and locate them on HPU
+        slot_mapping_flat = slot_mapping.flatten()  # type: ignore
+        indices = torch.div(slot_mapping_flat,
+                            self.block_size,
+                            rounding_mode="floor")
+        offsets = torch.fmod(slot_mapping_flat, self.block_size)
+
         attn_metadata = self.attn_backend.make_metadata(
             is_prompt=False,
             block_list=block_list,
             block_mapping=None,
             block_usage=block_usage,
-            block_indices=None,
-            block_offsets=None,
+            block_indices=indices.to(  # type: ignore
+                self.device,  # type: ignore
+                non_blocking=True),  # type: ignore
+            block_offsets=offsets.to(self.device, non_blocking=True),
             block_scales=None,
             block_groups=block_groups,
             attn_bias=None,
@@ -1532,30 +1540,17 @@ class HPUModelRunnerBase(ModelRunnerBase[TModelInputForHPU]):
             num_prefills=0,
             num_prefill_tokens=0,
             num_decode_tokens=num_decode_tokens,
-            slot_mapping=slot_mapping_CPU,
+            slot_mapping=slot_mapping,
             multi_modal_placeholder_index_maps=None,
             enable_kv_scales_calculation=False,
         )
-        # calculate indices and offsets using CPU and locate them on HPU
-        slot_mapping = slot_mapping_CPU.flatten()
-        indices = torch.div(slot_mapping,
-                            self.block_size,
-                            rounding_mode="floor")
-        offsets = torch.fmod(slot_mapping, self.block_size)
-        attn_metadata.block_offsets = offsets.to(
-            self.device,  # type: ignore
-            non_blocking=True)
-        attn_metadata.block_indices = indices.to(  # type: ignore
-            self.device,  # type: ignore
-            non_blocking=True)
-
         return PrepareDecodeMetadata(input_tokens=input_tokens,
                                      input_positions=input_positions,
                                      attn_metadata=attn_metadata,
                                      lora_index_mapping=lora_index_mapping,
                                      lora_prompt_mapping=lora_prompt_mapping,
                                      lora_requests=lora_requests,
-                                     slot_mapping=slot_mapping_CPU,
+                                     slot_mapping=slot_mapping,
                                      lora_ids=lora_ids)
 
     def prepare_input_tensors(
