@@ -1238,7 +1238,7 @@ class HPUModelRunnerBase(ModelRunnerBase[TModelInputForHPU]):
             num_prefills=real_num_seqs,
             num_prefill_tokens=num_prefill_tokens,
             num_decode_tokens=0,
-            slot_mapping=None,
+            slot_mapping=slot_mapping,
             multi_modal_placeholder_index_maps=placeholder_index_maps,
             enable_kv_scales_calculation=False,
         )
@@ -1532,7 +1532,7 @@ class HPUModelRunnerBase(ModelRunnerBase[TModelInputForHPU]):
             num_prefills=0,
             num_prefill_tokens=0,
             num_decode_tokens=num_decode_tokens,
-            slot_mapping=None,
+            slot_mapping=slot_mapping_CPU,
             multi_modal_placeholder_index_maps=None,
             enable_kv_scales_calculation=False,
         )
