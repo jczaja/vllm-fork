@@ -49,6 +49,9 @@ from vllm.transformers_utils.tokenizer import (AnyTokenizer, MistralTokenizer,
 from vllm.usage.usage_lib import UsageContext
 from vllm.utils import Counter, Device, deprecate_kwargs, is_list_of
 
+from habana_frameworks.torch.activity_profiler import DebugActivity
+
+
 if TYPE_CHECKING:
     from vllm.v1.metrics.reader import Metric
 
@@ -1502,6 +1505,7 @@ class LLM:
             lprofiler = profiler.profile(
                 schedule=profiler.schedule(wait=0, warmup=1, active=4, repeat=1),
                 activities=[profiler.ProfilerActivity.CPU, profiler.ProfilerActivity.HPU],
+                debug_activities=[DebugActivity.SYNAPSE_FUNCTION_CALLS, DebugActivity.BRIDGE_FUNCTION_CALLS],
                 on_trace_ready=profiler.tensorboard_trace_handler('vllm_logs', use_gzip=True), with_stack=True, with_modules=False, record_shapes=False, profile_memory=False)
             lprofiler.start()
 
