@@ -21,7 +21,7 @@ model_map = {
     'llama3-8b': '/mnt/weka/data/pytorch/llama3/Meta-Llama-3-8B-Instruct/',
     'llama3-70b': '/mnt/weka/data/pytorch/llama3/Meta-Llama-3-70B-Instruct/',
     'llama3.1-8b': '/mnt/weka/data/pytorch/llama3.1/Meta-Llama-3.1-8B/',
-    'llama3.1-70b': '/software/users/kzawora/models/meta-llama/Meta-Llama-3.1-70B-Instruct/',
+    'llama3.1-70b': '/mnt/weka/data/pytorch/llama3.1/Meta-Llama-3.1-70B/',
     'qwen3-30b': 'Qwen/Qwen3-30B-A3B'
 }
  

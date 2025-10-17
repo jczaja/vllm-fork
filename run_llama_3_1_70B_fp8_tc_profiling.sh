@@ -1,0 +1,1 @@
+RUNTIME_SCALE_PATCHING=1 PT_HPU_WEIGHT_SHARING=0 VLLM_EXPONENTIAL_BUCKETING=false QUANT_CONFIG=/software/users/jczaja/measurements/llama-3.1-70B/meta-llama-3.1-70b/maxabs_quant_g3.json VLLM_SKIP_WARMUP=true PT_HPU_LAZY_MODE=0 ./run_llama_3_8b_fp8_profiling_noinstruct.py -w 2 -m llama3.1-70b --chat-template llama-3.jinja
